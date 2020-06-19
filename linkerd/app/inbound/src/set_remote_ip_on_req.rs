@@ -11,6 +11,6 @@ use linkerd2_app_core::{
 
 pub fn layer() -> Layer<&'static str, tls::accept::Meta, ReqHeader> {
     add_header::request::layer(L5D_REMOTE_IP, |source: &tls::accept::Meta| {
-        HeaderValue::from_shared(Bytes::from(source.addrs.peer().ip().to_string())).ok()
+        HeaderValue::from_maybe_shared(Bytes::from(source.addrs.peer().ip().to_string())).ok()
     })
 }

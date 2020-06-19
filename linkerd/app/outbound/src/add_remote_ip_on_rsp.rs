@@ -11,6 +11,6 @@ use linkerd2_app_core::{
 
 pub fn layer() -> Layer<&'static str, HttpEndpoint, ResHeader> {
     add_header::response::layer(L5D_REMOTE_IP, |endpoint: &HttpEndpoint| {
-        HeaderValue::from_shared(Bytes::from(endpoint.addr.ip().to_string())).ok()
+        HeaderValue::from_maybe_shared(Bytes::from(endpoint.addr.ip().to_string())).ok()
     })
 }

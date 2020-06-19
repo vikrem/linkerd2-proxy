@@ -308,7 +308,6 @@ macro_rules! generate_tests {
             }
 
             #[test]
-            #[ignore] // #2597
             fn outbound_should_set() {
                 let _trace = trace_init();
                 let header = HeaderValue::from_static(IP_2);
@@ -326,7 +325,6 @@ macro_rules! generate_tests {
             }
 
             #[test]
-            #[ignore] // #2597
             fn inbound_should_set() {
                 let _trace = trace_init();
 
@@ -866,7 +864,6 @@ mod proxy_to_proxy {
     }
 
     #[test]
-    #[ignore] // #2597
     fn outbound_http1_l5d_server_id_l5d_client_id() {
         generate_l5d_tls_id_test! {
             server: server::http1,
@@ -875,7 +872,6 @@ mod proxy_to_proxy {
     }
 
     #[test]
-    #[ignore] // #2597
     fn outbound_http2_l5d_server_id_l5d_client_id() {
         generate_l5d_tls_id_test! {
             server: server::http2,

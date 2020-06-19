@@ -1,5 +1,6 @@
 use futures::{ready, TryFuture};
 use http::header::{AsHeaderName, HeaderValue};
+use linkerd2_stack::NewService;
 use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
@@ -23,6 +24,14 @@ pub struct Layer<H, T, R> {
 /// or response.
 #[derive(Clone)]
 pub struct MakeAddHeader<H, T, M, R> {
+    header: H,
+    get_header: GetHeader<T>,
+    inner: M,
+    _req_or_res: PhantomData<fn(R)>,
+}
+
+#[derive(Clone)]
+pub struct NewAddHeader<H, T, M, R> {
     header: H,
     get_header: GetHeader<T>,
     inner: M,
@@ -77,6 +86,39 @@ where
 }
 
 // === impl Stack ===
+
+/// Impl NewService
+
+impl<H, T, M, R> NewService<T> for NewAddHeader<H, T, M, R>
+where
+    H: AsHeaderName + Clone + fmt::Debug,
+    T: fmt::Debug,
+    M: NewService<T>,
+{
+    type Service = tower::util::Either<AddHeader<H, M::Service, R>, M::Service>;
+
+    fn new_service(&self, target: T) -> Self::Service {
+        let mut header = if let Some(value) = (self.get_header)(&target) {
+            Some((self.header.clone(), value))
+        } else {
+            trace!("{:?} not enabled for {:?}", self.header, target);
+            None
+        };
+
+        let svc = if let Some((header, value)) = header.take() {
+            tower::util::Either::A(AddHeader {
+                header,
+                value,
+                inner: self.inner.new_service(target),
+                _req_or_res: PhantomData,
+            })
+        } else {
+            tower::util::Either::B(self.inner.new_service(target))
+        };
+
+        return svc;
+    }
+}
 
 /// impl MakeService
 impl<H, T, M, R> tower::Service<T> for MakeAddHeader<H, T, M, R>

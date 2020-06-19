@@ -40,10 +40,8 @@ use tracing::{info, info_span};
 pub mod endpoint;
 mod prevent_loop;
 mod require_identity_for_ports;
-// #[allow(dead_code)] // TODO #2597
-// mod set_client_id_on_req;
-// #[allow(dead_code)] // TODO #2597
-// mod set_remote_ip_on_req;
+mod set_client_id_on_req;
+mod set_remote_ip_on_req;
 
 use self::prevent_loop::PreventLoop;
 
@@ -371,6 +369,10 @@ impl Config {
             // Tracks proxy handletime.
             .push(metrics.http_handle_time.layer());
 
+        let http_header_additions = svc::layers()
+            .push(set_client_id_on_req::layer())
+            .push(set_remote_ip_on_req::layer());
+
         let http_server = svc::stack(http_router)
             // Ensures that the built service is ready before it is returned
             // to the router to dispatch a request.
@@ -388,6 +390,7 @@ impl Config {
             // Used by tap.
             .push_http_insert_target()
             .check_new_service::<tls::accept::Meta>()
+            .push(http_header_additions)
             .push_on_response(
                 svc::layers()
                     .push(http_strip_headers)
