@@ -71,9 +71,9 @@ impl<H, T, M, R> tower::layer::Layer<M> for Layer<H, T, R>
 where
     H: AsHeaderName + Clone + fmt::Debug,
     T: fmt::Debug,
-    M: tower::Service<T>,
+    M: NewService<T>,
 {
-    type Service = MakeAddHeader<H, T, M, R>;
+    type Service = NewAddHeader<H, T, M, R>;
 
     fn layer(&self, inner: M) -> Self::Service {
         Self::Service {
