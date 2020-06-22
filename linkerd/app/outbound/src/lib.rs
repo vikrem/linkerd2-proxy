@@ -37,8 +37,8 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::info_span;
 
-// mod add_remote_ip_on_rsp;
-// mod add_server_id_on_rsp;
+mod add_remote_ip_on_rsp;
+mod add_server_id_on_rsp;
 pub mod endpoint;
 mod orig_proto_upgrade;
 mod prevent_loop;
@@ -206,6 +206,10 @@ impl Config {
                 )
                 .push(MakeRequireIdentityLayer::new());
 
+            let add_incoming_headers = svc::layers()
+                .push(add_server_id_on_rsp::layer())
+                .push(add_remote_ip_on_rsp::layer());
+
             svc::stack(tcp_connect.clone())
                 // Initiates an HTTP client on the underlying transport. Prior-knowledge HTTP/2
                 // is typically used (i.e. when communicating with other proxies); though
@@ -219,6 +223,7 @@ impl Config {
                 .push(admit::AdmitLayer::new(prevent_loop))
                 .push(observability.clone())
                 .push(identity_headers.clone())
+                .push(add_incoming_headers)
                 .push(http::override_authority::Layer::new(vec![HOST.as_str(), CANONICAL_DST_HEADER]))
                 // Ensures that the request's URI is in the proper form.
                 .push(http::normalize_uri::layer())

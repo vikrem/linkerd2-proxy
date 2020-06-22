@@ -30,14 +30,6 @@ pub struct MakeAddHeader<H, T, M, R> {
     _req_or_res: PhantomData<fn(R)>,
 }
 
-#[derive(Clone)]
-pub struct NewAddHeader<H, T, M, R> {
-    header: H,
-    get_header: GetHeader<T>,
-    inner: M,
-    _req_or_res: PhantomData<fn(R)>,
-}
-
 #[pin_project]
 pub struct MakeFuture<F, H, R> {
     header: Option<(H, HeaderValue)>,
@@ -73,7 +65,7 @@ where
     T: fmt::Debug,
     M: NewService<T>,
 {
-    type Service = NewAddHeader<H, T, M, R>;
+    type Service = MakeAddHeader<H, T, M, R>;
 
     fn layer(&self, inner: M) -> Self::Service {
         Self::Service {
@@ -89,7 +81,7 @@ where
 
 /// Impl NewService
 
-impl<H, T, M, R> NewService<T> for NewAddHeader<H, T, M, R>
+impl<H, T, M, R> NewService<T> for MakeAddHeader<H, T, M, R>
 where
     H: AsHeaderName + Clone + fmt::Debug,
     T: fmt::Debug,
