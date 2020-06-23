@@ -269,9 +269,10 @@ macro_rules! generate_tests {
             const IP_2: &'static str = "127.0.0.1";
 
             #[test]
-            fn outbound_should_strip() {
+            fn outbound_should_rewrite() {
                 let _trace = trace_init();
                 let header = HeaderValue::from_static(IP_1);
+                let ret_header = HeaderValue::from_static(IP_2);
 
                 let srv = $make_server().route_fn("/strip", |_req| {
                     Response::builder().header(REMOTE_IP_HEADER, IP_1).body(Default::default()).unwrap()
@@ -286,15 +287,18 @@ macro_rules! generate_tests {
 
                 assert_eq!(rsp.status(), 200);
                 assert_ne!(rsp.headers().get(REMOTE_IP_HEADER), Some(&header));
+                assert_eq!(rsp.headers().get(REMOTE_IP_HEADER), Some(&ret_header));
             }
 
             #[test]
-            fn inbound_should_strip() {
+            fn inbound_should_rewrite() {
                 let _trace = trace_init();
                 let header = HeaderValue::from_static(IP_1);
+                let ret_header = HeaderValue::from_static(IP_2);
 
                 let srv = $make_server().route_fn("/strip", move |req| {
                     assert_ne!(req.headers().get(REMOTE_IP_HEADER), Some(&header));
+                    assert_eq!(req.headers().get(REMOTE_IP_HEADER), Some(&ret_header));
                     Response::default()
                 }).run();
 
@@ -721,7 +725,7 @@ mod proxy_to_proxy {
     }
 
     #[test]
-    fn inbound_should_strip_l5d_client_id() {
+    fn inbound_should_strip_naked_l5d_client_id() {
         let _trace = trace_init();
 
         let srv = server::http1()
@@ -747,7 +751,7 @@ mod proxy_to_proxy {
     }
 
     #[test]
-    fn outbound_should_strip_l5d_client_id() {
+    fn outbound_should_strip_naked_l5d_client_id() {
         let _trace = trace_init();
 
         let srv = server::http1()
@@ -774,7 +778,7 @@ mod proxy_to_proxy {
     }
 
     #[test]
-    fn inbound_should_strip_l5d_server_id() {
+    fn inbound_should_strip_naked_l5d_server_id() {
         let _trace = trace_init();
 
         let srv = server::http1()
@@ -803,7 +807,7 @@ mod proxy_to_proxy {
     }
 
     #[test]
-    fn outbound_should_strip_l5d_server_id() {
+    fn outbound_should_strip_naked_l5d_server_id() {
         let _trace = trace_init();
 
         let srv = server::http1()
@@ -825,7 +829,11 @@ mod proxy_to_proxy {
 
         let res = client.request(client.request_builder("/strip-me"));
         assert_eq!(res.status(), 200);
-        assert_eq!(res.headers().get("l5d-server-id"), None);
+        assert_eq!(
+            res.headers().get("l5d-server-id"),
+            None,
+            "server id must not exist"
+        );
     }
 
     macro_rules! generate_l5d_tls_id_test {

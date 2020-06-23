@@ -2,7 +2,7 @@
 
 #![deny(warnings, rust_2018_idioms)]
 #![recursion_limit = "256"]
-#![type_length_limit = "16289823"]
+#![type_length_limit = "19219954"]
 
 use linkerd2_app::{trace, Config};
 use linkerd2_signal as signal;

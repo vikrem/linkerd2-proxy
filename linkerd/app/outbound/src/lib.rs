@@ -223,7 +223,7 @@ impl Config {
                 .push(admit::AdmitLayer::new(prevent_loop))
                 .push(observability.clone())
                 .push(identity_headers.clone())
-                .push(add_incoming_headers)
+                .push(add_incoming_headers.clone())
                 .push(http::override_authority::Layer::new(vec![HOST.as_str(), CANONICAL_DST_HEADER]))
                 // Ensures that the request's URI is in the proper form.
                 .push(http::normalize_uri::layer())

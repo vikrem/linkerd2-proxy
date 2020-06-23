@@ -63,7 +63,6 @@ impl<H, T, M, R> tower::layer::Layer<M> for Layer<H, T, R>
 where
     H: AsHeaderName + Clone + fmt::Debug,
     T: fmt::Debug,
-    M: NewService<T>,
 {
     type Service = MakeAddHeader<H, T, M, R>;
 
