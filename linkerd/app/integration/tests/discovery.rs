@@ -871,6 +871,48 @@ mod proxy_to_proxy {
         };
     }
 
+    macro_rules! generate_l5d_tls_id_rewrite {
+        (server: $make_server:path, client: $make_client:path) => {
+            let _trace = trace_init();
+            let id = "foo.ns1.serviceaccount.identity.linkerd.cluster.local";
+            let id_env = identity::Identity::new("foo-ns1", id.to_string());
+
+            let srv = $make_server()
+                .route_fn("/hallo", move |req| {
+                    assert_eq!(req.headers()["l5d-client-id"], id);
+                    Response::builder()
+                        .header("l5d-server-id", "FAKEFAKEFAKE")
+                        .body("".into())
+                        .unwrap()
+                })
+                .run();
+
+            let in_proxy = proxy::new()
+                .inbound(srv)
+                .identity(id_env.service().run())
+                .run_with_test_env(id_env.env.clone());
+
+            let ctrl = controller::new();
+            let dst = ctrl.destination_tx("disco.test.svc.cluster.local");
+            dst.send(controller::destination_add_tls(in_proxy.inbound, id));
+
+            let out_proxy = proxy::new()
+                .controller(ctrl.run())
+                .identity(id_env.service().run())
+                .run_with_test_env(id_env.env.clone());
+
+            let client = $make_client(out_proxy.outbound, "disco.test.svc.cluster.local");
+
+            let res = client.request(
+                client
+                    .request_builder("/hallo")
+                    .header("l5d-client-id", "FAKEFAKEFAKE"),
+            );
+            assert_eq!(res.status(), 200);
+            assert_eq!(res.headers()["l5d-server-id"], id);
+        };
+    }
+
     #[test]
     fn outbound_http1_l5d_server_id_l5d_client_id() {
         generate_l5d_tls_id_test! {
@@ -882,6 +924,22 @@ mod proxy_to_proxy {
     #[test]
     fn outbound_http2_l5d_server_id_l5d_client_id() {
         generate_l5d_tls_id_test! {
+            server: server::http2,
+            client: client::http2
+        }
+    }
+
+    #[test]
+    fn outbound_http1_l5d_server_id_l5d_rewrite() {
+        generate_l5d_tls_id_rewrite! {
+            server: server::http1,
+            client: client::http1
+        }
+    }
+
+    #[test]
+    fn outbound_http2_l5d_server_id_l5d_rewrite() {
+        generate_l5d_tls_id_rewrite! {
             server: server::http2,
             client: client::http2
         }
