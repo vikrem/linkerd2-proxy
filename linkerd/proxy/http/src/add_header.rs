@@ -1,5 +1,6 @@
 use futures::{ready, TryFuture};
 use http::header::{AsHeaderName, HeaderValue};
+use linkerd2_stack::NewService;
 use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
@@ -62,7 +63,7 @@ impl<H, T, M, R> tower::layer::Layer<M> for Layer<H, T, R>
 where
     H: AsHeaderName + Clone + fmt::Debug,
     T: fmt::Debug,
-    M: tower::Service<T>,
+    M: NewService<T>,
 {
     type Service = MakeAddHeader<H, T, M, R>;
 
@@ -77,6 +78,39 @@ where
 }
 
 // === impl Stack ===
+
+/// Impl NewService
+
+impl<H, T, M, R> NewService<T> for MakeAddHeader<H, T, M, R>
+where
+    H: AsHeaderName + Clone + fmt::Debug,
+    T: fmt::Debug,
+    M: NewService<T>,
+{
+    type Service = tower::util::Either<AddHeader<H, M::Service, R>, M::Service>;
+
+    fn new_service(&mut self, target: T) -> Self::Service {
+        let mut header = if let Some(value) = (self.get_header)(&target) {
+            Some((self.header.clone(), value))
+        } else {
+            trace!("{:?} not enabled for {:?}", self.header, target);
+            None
+        };
+
+        let svc = if let Some((header, value)) = header.take() {
+            tower::util::Either::A(AddHeader {
+                header,
+                value,
+                inner: self.inner.new_service(target),
+                _req_or_res: PhantomData,
+            })
+        } else {
+            tower::util::Either::B(self.inner.new_service(target))
+        };
+
+        return svc;
+    }
+}
 
 /// impl MakeService
 impl<H, T, M, R> tower::Service<T> for MakeAddHeader<H, T, M, R>
@@ -137,6 +171,7 @@ where
 pub mod request {
     use http;
     use http::header::{AsHeaderName, IntoHeaderName};
+    use linkerd2_stack::Proxy;
     use std::task::{Context, Poll};
 
     pub fn layer<H, T>(header: H, get_header: super::GetHeader<T>) -> super::Layer<H, T, ReqHeader>
@@ -149,6 +184,24 @@ pub mod request {
     /// Marker type used to specify that the `Request` headers should be added.
     #[derive(Clone, Debug)]
     pub enum ReqHeader {}
+
+    impl<H, P, S, B> Proxy<http::Request<B>, S> for super::AddHeader<H, P, ReqHeader>
+    where
+        P: Proxy<http::Request<B>, S>,
+        H: IntoHeaderName + Clone,
+        S: tower::Service<P::Request>,
+    {
+        type Request = P::Request;
+        type Response = P::Response;
+        type Error = P::Error;
+        type Future = P::Future;
+
+        fn proxy(&self, svc: &mut S, mut req: http::Request<B>) -> Self::Future {
+            req.headers_mut()
+                .insert(self.header.clone(), self.value.clone());
+            self.inner.proxy(svc, req)
+        }
+    }
 
     impl<H, S, B> tower::Service<http::Request<B>> for super::AddHeader<H, S, ReqHeader>
     where

@@ -12,22 +12,10 @@ pub use self::endpoint::{
 use self::prevent_loop::PreventLoop;
 use self::require_identity_for_ports::RequireIdentityForPorts;
 use futures::future;
-use linkerd2_app_core::{
-    classify,
-    config::{ProxyConfig, ServerConfig},
-    drain, dst, errors, metric_labels,
-    opencensus::proto::trace::v1 as oc,
-    profiles,
-    proxy::{
+use linkerd2_app_core::{DST_OVERRIDE_HEADER, Error, L5D_CLIENT_ID, NameAddr, NameMatch, ProxyMetrics, TraceContext, classify, config::{ProxyConfig, ServerConfig}, drain, dst, errors, metric_labels, opencensus::proto::trace::v1 as oc, profiles, proxy::{
         http::{self, orig_proto, strip_header},
         identity, tap, tcp,
-    },
-    reconnect, router,
-    spans::SpanConverter,
-    svc::{self},
-    transport::{self, io, listen, tls},
-    Error, NameAddr, NameMatch, ProxyMetrics, TraceContext, DST_OVERRIDE_HEADER,
-};
+    }, reconnect, router, spans::SpanConverter, svc::{self}, transport::{self, io, listen, tls}};
 use std::{collections::HashMap, time::Duration};
 use tokio::{net::TcpStream, sync::mpsc};
 use tracing::{debug_span, info_span};
@@ -36,6 +24,7 @@ mod allow_discovery;
 pub mod endpoint;
 mod prevent_loop;
 mod require_identity_for_ports;
+mod set_client_id_on_req;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -344,6 +333,12 @@ impl Config {
             // Synthesizes responses for proxy errors.
             .push(errors::layer());
 
+        let client_id_headers = svc::layers()
+            // Scrub any id headers the incoming request may have
+            .push_on_response(http::strip_header::request::layer(L5D_CLIENT_ID))
+            // Add ours from TLS identity
+            .push(set_client_id_on_req::layer());
+
         let http_server = svc::stack(http_router)
             // Removes the override header after it has been used to
             // determine a reuquest target.
@@ -356,6 +351,7 @@ impl Config {
             // Used by tap.
             .push_http_insert_target()
             .check_new_service::<TcpAccept, http::Request<_>>()
+            .push(client_id_headers)
             .push_on_response(
                 svc::layers()
                     .push(http_admit_request)
