@@ -26,7 +26,7 @@ use linkerd2_app_core::{
     spans::SpanConverter,
     svc::{self},
     transport::{self, io, listen, tls},
-    Error, NameAddr, NameMatch, TraceContext, DST_OVERRIDE_HEADER, L5D_CLIENT_ID
+    Error, NameAddr, NameMatch, TraceContext, DST_OVERRIDE_HEADER, L5D_CLIENT_ID,
 };
 use std::{collections::HashMap, time::Duration};
 use tokio::{net::TcpStream, sync::mpsc};
@@ -346,10 +346,9 @@ impl Config {
             .push(errors::layer());
 
         let client_id_headers = svc::layers()
-            // Scrub any id headers the incoming request may have
-            .push_on_response(http::strip_header::request::layer(L5D_CLIENT_ID))
             // Add ours from TLS identity
-            .push(set_client_id_on_req::layer());
+            .push(set_client_id_on_req::layer())
+            .push_on_response(strip_header::request::layer(L5D_CLIENT_ID));
 
         let http_server = svc::stack(http_router)
             // Removes the override header after it has been used to
