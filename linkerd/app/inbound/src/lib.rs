@@ -360,10 +360,11 @@ impl Config {
             .push(svc::layer::mk(|inner| {
                 svc::stack::NewRouter::new(RequestTarget::from, inner)
             }))
+            // Inject headers revealing incoming request service account
+            .push(client_id_headers)
             // Used by tap.
             .push_http_insert_target()
             .check_new_service::<TcpAccept, http::Request<_>>()
-            .push(client_id_headers)
             .push_on_response(
                 svc::layers()
                     .push(http_admit_request)
